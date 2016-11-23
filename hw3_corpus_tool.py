@@ -40,7 +40,7 @@ def get_data(data_dir):
     data_dir - a dir with csv files containing dialogs"""
     dialog_filenames = sorted(glob.glob(os.path.join(data_dir, "*.csv")))
     for dialog_filename in dialog_filenames:
-        yield get_utterances_from_filename(dialog_filename)
+        yield (dialog_filename, get_utterances_from_filename(dialog_filename))
 
 DialogUtterance = namedtuple("DialogUtterance", ("act_tag", "speaker", "pos", "text"))
 

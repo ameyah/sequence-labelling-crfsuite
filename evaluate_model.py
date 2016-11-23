@@ -32,6 +32,7 @@ class CrfModelEvaluate():
                     except KeyError as e:
                         print(file_name)
                     for i in range(len(utterances_list)):
+                        # print(file_name)
                         if utterances_list[i].act_tag == tagged_labels[i]:
                             self.correctly_classified_tags += 1
                         self.total_tags += 1

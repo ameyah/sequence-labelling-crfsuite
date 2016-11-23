@@ -1,9 +1,8 @@
-from hw3_corpus_tool import get_utterances_from_filename
+from hw3_corpus_tool import get_utterances_from_filename, get_data
 import argparse
-from collections import defaultdict
 import os
-from math import ceil
-from random import shuffle
+import pycrfsuite
+from collections import defaultdict
 
 __author__ = 'ameya'
 
@@ -11,133 +10,102 @@ __author__ = 'ameya'
 class BaselineCrf():
     class __BaselineCrf():
         def __init__(self):
-            self.training_dir = None
-            self.spam_files = 0
-            self.ham_files = 0
-            self.train_less = 0
-            self.less_files = 0
-            self.less_spam_files = 0
-            self.less_ham_files = 0
-            self.train_iterations = 0
-            self.files_dict = {}
-            self.weights = {}
-            self.cache_feature_dict = {}
-            self.bias = 0
-            self.spam_label = -1
-            self.ham_label = 1
+            self.features = []
+            self.act_tags = []
+            self.raw_data = {}
+            self.trainer = pycrfsuite.Trainer(verbose=False)
+            self.tagger = pycrfsuite.Tagger()
+            self.tag_data = defaultdict(list)
 
-        def set_training_dir(self, training_dir):
-            self.training_dir = training_dir
+        def read_all_files(self, input_dir):
+            for file_name in os.listdir(input_dir):
+                if file_name.endswith(".csv"):
+                    utterances_list = get_utterances_from_filename(os.path.join(input_dir, file_name))
+                    # self.raw_data[]
 
-        def set_train_type(self, train_less, train_iterations, **kwargs):
-            self.train_less = train_less
-            self.train_iterations = train_iterations
-            if kwargs['spam_label']:
-                self.spam_label = kwargs['spam_label']
-            if kwargs['ham_label']:
-                self.ham_label = kwargs['ham_label']
-            if self.train_less != 0:
-                self.compute_files()
-
-        def compute_files(self):
-            for current_dir, dirnames, filenames in os.walk(self.training_dir):
-                last_dir_name = os.path.basename(current_dir)
-                if last_dir_name == "spam":
-                    for file_name in filenames:
-                        file_extension = os.path.splitext(file_name)[1]
-                        if file_extension == ".txt":
-                            self.spam_files += 1
-                elif last_dir_name == "ham":
-                    for file_name in filenames:
-                        file_extension = os.path.splitext(file_name)[1]
-                        if file_extension == ".txt":
-                            self.ham_files += 1
-            if self.train_less != 0:
-                self.less_spam_files = ceil((self.train_less / 100) * self.spam_files)
-                self.less_ham_files = ceil((self.train_less / 100) * self.ham_files)
-                self.spam_files = 0
-                self.ham_files = 0
-
-        # procedure to recursively determine all the spam and ham directories
-        # and store in spam_dirs and ham_dirs
-        def map_spam_ham_dirs(self):
-            for current_dir, dirnames, filenames in os.walk(self.training_dir):
-                if self.train_less != 0:
-                    if "train/2" not in current_dir:
-                        continue
-                last_dir_name = os.path.basename(current_dir)
-                if last_dir_name == "spam":
-                    for file_name in filenames:
-                        file_extension = os.path.splitext(file_name)[1]
-                        if file_extension == ".txt":
-                            if self.train_less != 0:
-                                if self.less_spam_files == 0:
-                                    continue
-                                self.less_spam_files -= 1
-                            full_file_path = os.path.join(current_dir, file_name)
-                            self.files_dict[full_file_path] = self.spam_label
-                            # self.cache_features(os.path.join(current_dir, file_name))
-                            feature_dict = defaultdict(int)
-                            with open(full_file_path, "r", encoding="latin1") as file_handler:
-                                file_content = file_handler.read()
-                                features = file_content.split()
-                                for feature in features:
-                                    feature_dict[feature] += 1
-                                    self.weights[feature] = 0
-                            self.cache_feature_dict[full_file_path] = feature_dict
-                            self.spam_files += 1
-                elif last_dir_name == "ham":
-                    for file_name in filenames:
-                        file_extension = os.path.splitext(file_name)[1]
-                        if file_extension == ".txt":
-                            if self.train_less != 0:
-                                if self.less_ham_files == 0:
-                                    continue
-                                self.less_ham_files -= 1
-                            full_file_path = os.path.join(current_dir, file_name)
-                            self.files_dict[full_file_path] = self.ham_label
-                            # self.cache_features(os.path.join(current_dir, file_name))
-                            feature_dict = defaultdict(int)
-                            with open(full_file_path, "r", encoding="latin1") as file_handler:
-                                file_content = file_handler.read()
-                                features = file_content.split()
-                                for feature in features:
-                                    feature_dict[feature] += 1
-                                    self.weights[feature] = 0
-                            self.cache_feature_dict[full_file_path] = feature_dict
-                            self.ham_files += 1
+        def scan_input_dir(self, input_dir):
+            for file_name in os.listdir(input_dir):
+                if file_name.endswith(".csv"):
+                    single_file_features = []
+                    single_file_act_tags = []
+                    utterances_list = get_utterances_from_filename(os.path.join(input_dir, file_name))
+                    current_speaker = utterances_list[0].speaker
+                    first_utterance = True
+                    for utterance in utterances_list:
+                        token_list = []
+                        pos_tag_list = []
+                        utterance_features = []
+                        try:
+                            for word_tag in utterance.pos:
+                                token_list.append("TOKEN_" + str(word_tag.token))
+                                if word_tag.pos:
+                                    pos_tag_list.append("POS_" + str(word_tag.pos))
+                        except TypeError as e:
+                            pass
+                        if first_utterance:
+                            # utterance_features.extend(['1', '0'])
+                            utterance_features.extend(['FEATURE_FU'])
+                            first_utterance = False
+                        elif current_speaker != utterance.speaker:
+                            # utterance_features.extend(['0', '1'])
+                            utterance_features.extend(['FEATURE_SC'])
+                            current_speaker = utterance.speaker
+                        utterance_features.extend(token_list)
+                        utterance_features.extend(pos_tag_list)
+                        single_file_features.append(utterance_features)
+                        single_file_act_tags.append(utterance.act_tag)
+                    # self.trainer.append(single_file_features, single_file_act_tags)
+                    self.features.extend(single_file_features)
+                    self.act_tags.extend(single_file_act_tags)
+            self.trainer.append(self.features, self.act_tags)
 
         def train_model(self):
-            files_dict_keys = list(self.files_dict.keys())
-            for i in range(0, self.train_iterations):
-                shuffle(files_dict_keys)
-                self.perceptron_train(files_dict_keys)
+            # self.trainer.set_params({'c1': 1.0, 'c2': 0.80, 'max_iterations': 43, 'feature.possible_transitions': True})
+            self.trainer.set_params({'c1': 1.0, 'c2': 0.1, 'max_iterations': 100, 'feature.possible_transitions': True})
+            self.trainer.train('sequence_label_model.crfsuite')
 
-        def perceptron_train(self, files_dict_keys):
-            for file_key in files_dict_keys:
-                feature_dict = self.cache_feature_dict[file_key]
-                activation = 0
-                for feature in feature_dict:
-                    activation += (self.weights[feature] * feature_dict[feature])
-                activation += self.bias
-                file_key_label = self.files_dict[file_key]
-                if file_key_label * activation <= 0:
-                    # wrong prediction. Adjust the weightss
-                    for feature in feature_dict:
-                        self.weights[feature] += (file_key_label * feature_dict[feature])
-                    self.bias += file_key_label
+        def tag_dir(self, test_dir):
+            self.tagger.open('sequence_label_model.crfsuite')
+            for file_name in os.listdir(test_dir):
+                if file_name.endswith(".csv"):
+                    utterances_list = get_utterances_from_filename(os.path.join(test_dir, file_name))
+                    current_speaker = utterances_list[0].speaker
+                    first_utterance = True
+                    for utterance in utterances_list:
+                        token_list = []
+                        pos_tag_list = []
+                        utterance_features = []
+                        try:
+                            for word_tag in utterance.pos:
+                                token_list.append("TOKEN_" + str(word_tag.token))
+                                if word_tag.pos:
+                                    pos_tag_list.append("POS_" + str(word_tag.pos))
+                        except TypeError as e:
+                            pass
+                        if first_utterance:
+                            # utterance_features.extend(['1', '0'])
+                            utterance_features.extend(['FEATURE_FU'])
+                            first_utterance = False
+                        elif current_speaker != utterance.speaker:
+                            # utterance_features.extend(['0', '1'])
+                            utterance_features.extend(['FEATURE_SC'])
+                            current_speaker = utterance.speaker
+                        utterance_features.extend(token_list)
+                        utterance_features.extend(pos_tag_list)
+                        utterance_tag = self.tagger.tag([utterance_features])
+                        self.tag_data[file_name].append(utterance_tag)
 
-        def write_training_data(self, write_file):
+        def write_data(self, write_file):
+            # print(self.tag_data)
             try:
                 with open(write_file, "w", encoding='latin1') as file_handler:
-                    # the first line is for "bias"
-                    file_handler.write(str(self.bias) + '\n')
-                    # following lines contain weights of features
-                    for weight in self.weights:
+                    for file_name in self.tag_data:
                         try:
-                            file_handler.write(str(weight) + ' ' + str(self.weights[weight]) + '\n')
+                            file_handler.write("Filename=\"" + str(file_name) + "\"" + '\n')
+                            for tag in self.tag_data[file_name]:
+                                file_handler.write(str(tag[0]) + '\n')
+                            file_handler.write('\n')
                         except:
-                            # print("Exception in writing weights")
                             continue
             except:
                 return
@@ -159,8 +127,8 @@ class BaselineCrf():
 def get_command_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("input_dir", help='Directory of input training data.')
-    parser.add_argument("-l", "--less", default=0, type=int, help='Add if data is to be trained with only x% data')
-    parser.add_argument("-i", "--iterations", default=20, type=int, help='Add if # of iterations need to be changed')
+    parser.add_argument("test_dir", help='Directory of test data.')
+    parser.add_argument("output_file", help='Output file name.')
     args = parser.parse_args()
     return args
 
@@ -168,10 +136,7 @@ def get_command_args():
 if __name__ == '__main__':
     train_instance = BaselineCrf()
     args = get_command_args()
-    train_instance.set_training_dir(os.path.abspath(args.input_dir))
-    train_instance.set_train_type(args.less, args.iterations, spam_label=-1, ham_label=1)
-    train_instance.map_spam_ham_dirs()
+    train_instance.scan_input_dir(os.path.abspath(args.input_dir))
     train_instance.train_model()
-    train_instance.write_training_data('per_model.txt')
-
-get_utterances_from_filename('labeled data/0001.csv')
+    train_instance.tag_dir(os.path.abspath(args.test_dir))
+    train_instance.write_data(os.path.abspath(args.output_file))

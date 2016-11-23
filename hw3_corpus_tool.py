@@ -30,7 +30,7 @@ def get_utterances_from_file(dialog_csv_file):
 
 def get_utterances_from_filename(dialog_csv_filename):
     """Returns a list of DialogUtterances from an unopened filename."""
-    with open(dialog_csv_filename, "r") as dialog_csv_file:
+    with open(dialog_csv_filename, "r", encoding="latin1") as dialog_csv_file:
         return get_utterances_from_file(dialog_csv_file)
 
 def get_data(data_dir):

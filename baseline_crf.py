@@ -53,7 +53,7 @@ class BaselineCrf():
 
         def train_model(self):
             # self.trainer.set_params({'c1': 1.0, 'c2': 0.80, 'max_iterations': 43, 'feature.possible_transitions': True})
-            self.trainer.set_params({'c1': 1.0, 'c2': 0.1, 'max_iterations': 100, 'feature.possible_transitions': True})
+            self.trainer.set_params({'c1': 2.0, 'c2': 0.1, 'max_iterations': 130, 'feature.possible_transitions': True})
             self.trainer.train('sequence_label_model.crfsuite')
 
         def tag_dir(self, test_dir):

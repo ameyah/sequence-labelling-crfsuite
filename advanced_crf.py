@@ -1,4 +1,3 @@
-import glob
 from hw3_corpus_tool import get_utterances_from_filename, get_data
 import argparse
 import os
@@ -18,12 +17,6 @@ class AdvancedCrf():
             self.tagger = pycrfsuite.Tagger()
             self.tag_data = defaultdict(list)
 
-        def read_all_files(self, input_dir):
-            for file_name in os.listdir(input_dir):
-                if file_name.endswith(".csv"):
-                    utterances_list = get_utterances_from_filename(os.path.join(input_dir, file_name))
-                    # self.raw_data[]
-
         @staticmethod
         def get_features_act_tags(dialogue):
             features = []
@@ -40,34 +33,53 @@ class AdvancedCrf():
                         utterance_feature.append("FEATURE_SC")
                         current_speaker = utterance.speaker
                     if utterance.pos:
+                        utterance_feature.append("LEN_" + str(len(utterance.pos)))
+
                         utterance_feature.append("TOKEN_FT_" + utterance.pos[0].token)
                         utterance_feature.append("POS_FT_" + utterance.pos[0].pos)
                         previous_token = "TOKEN_" + utterance.pos[0].token
                         previous_pos = "POS_" + utterance.pos[0].pos
                         for word_index, word in enumerate(utterance.pos[1: -1]):
-                            current_token = "TOKEN_" + word.token
-                            current_pos = "POS_" + word.pos
-                            utterance_feature.append(current_token)
                             if word.pos not in ['.', ',']:
+                                current_token = "TOKEN_" + word.token
+                                current_pos = "POS_" + word.pos
+                                utterance_feature.append(current_token)
                                 utterance_feature.append(current_pos)
+                            else:
+                                continue
 
-                            # append trigrams
+                            # append bigrams
+                            """
                             try:
                                 next_token = "TOKEN_" + utterance.pos[word_index + 2].token
                                 next_pos = "POS_" + utterance.pos[word_index + 2].pos
                             except IndexError as e:
                                 next_token = ""
                                 next_pos = ""
+                            """
+                            utterance_feature.append("%s_%s" % (previous_token, current_token))
+                            utterance_feature.append("%s_%s" % (previous_pos, current_pos))
+                            """
+                            utterance_feature.append("%s_%s" % (current_token, next_token))
+                            utterance_feature.append("%s_%s" % (current_pos, next_pos))
                             utterance_feature.append("%s_%s_%s" % (previous_token, current_token, next_token))
-                            # print("%s|%s|%s" % (previous_token, current_token, next_token))
+                            print("%s|%s|%s" % (previous_token, current_token, next_token))
                             utterance_feature.append("%s_%s_%s" % (previous_pos, current_pos, next_pos))
+                            """
                             previous_token, previous_pos = current_token, current_pos
                         utterance_feature.append("TOKEN_LT_" + utterance.pos[-1].token)
                         utterance_feature.append("POS_LT_" + utterance.pos[-1].pos)
+                        utterance_feature.append("%s_%s" % (previous_token, utterance.pos[-1].token))
+                        utterance_feature.append("%s_%s" % (previous_pos, utterance.pos[-1].pos))
                     else:
                         utterance_feature.append("TOKEN_NONE")
                         utterance_feature.append("POS_NONE")
-                    utterance_feature.append(str(len(utterance.pos)))
+                    try:
+                        utterance_feature.append("TOKEN_NT_" + dialogue[i + 1].pos[0].token)
+                    except:
+                        # print(utterance.text)
+                        # print(dialogue[i + 1].text)
+                        pass
                     features.append(utterance_feature)
                     act_tags.append(utterance.act_tag)
                 except:
@@ -84,7 +96,7 @@ class AdvancedCrf():
 
         def train_model(self):
             # self.trainer.set_params({'c1': 1.0, 'c2': 0.80, 'max_iterations': 43, 'feature.possible_transitions': True})
-            self.trainer.set_params({'c1': 3.0, 'c2': 0.1, 'max_iterations': 100, 'feature.possible_transitions': True})
+            self.trainer.set_params({'c1': 2.0, 'c2': 0.3, 'max_iterations': 90, 'feature.possible_transitions': True})
             self.trainer.train('adv_sequence_label_model.crfsuite')
 
         def tag_dir(self, test_dir):

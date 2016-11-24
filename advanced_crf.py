@@ -80,8 +80,9 @@ class AdvancedCrf():
                         # print(utterance.text)
                         # print(dialogue[i + 1].text)
                         pass
-                    features.append(utterance_feature)
-                    act_tags.append(utterance.act_tag)
+                    if utterance.act_tag:
+                        features.append(utterance_feature)
+                        act_tags.append(utterance.act_tag)
                 except:
                     continue
             # add feature in last utterance

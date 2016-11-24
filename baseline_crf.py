@@ -41,8 +41,9 @@ class BaselineCrf():
                 if utterance.pos:
                     utterance_feature.extend(["TOKEN_" + word.token for word in utterance.pos])
                     utterance_feature.extend(["POS_" + word.pos for word in utterance.pos])
-                features.append(utterance_feature)
-                act_tags.append(utterance.act_tag)
+                if utterance.act_tag:
+                    features.append(utterance_feature)
+                    act_tags.append(utterance.act_tag)
             return features, act_tags
 
         def scan_input_dir(self, input_dir):
